@@ -3,64 +3,93 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 
 const createToken = (user) => {
-  return jwt.sign(
-    { id: user._id, role: user.role }, 
-    process.env.JWT_SECRET,
-    { expiresIn: '7d' },
-  );
+  return jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
 };
+
+// Shapes the safe user object we send back. Never includes the password.
+const publicUser = (user) => ({
+  id: user._id,
+  fullName: user.fullName,
+  email: user.email,
+  role: user.role,
+});
 
 // Handles POST /api/auth/register
 export const registerUser = async (req, res) => {
   try {
     const { fullName, email, password, role } = req.body;
 
-    // Refuse the request if any required field is missing.
+    // Shared fields are required for everyone.
     if (!fullName || !email || !password || !role) {
-      return res.status(400).json({ message: 'All fields are required' });
+      return res.status(400).json({ message: 'Full name, email, password and role are required' });
     }
 
-    // Block registration if the email is already taken.
+    // Password length is checked here, on the plain password, before hashing.
+    if (password.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    }
+
+    // Role must be one we support.
+    if (!['student', 'employer', 'coordinator'].includes(role)) {
+      return res.status(400).json({ message: 'Invalid role' });
+    }
+
+    // Block duplicate emails with a clear message.
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(409).json({ message: 'Email is already registered' });
     }
 
-    // Hash the password before saving. 10 is the safe default work factor.
-    const hashedPassword = await bcrypt.hash(password, 10);
-
     // Base user with the shared fields.
     const newUserData = {
       fullName,
       email,
-      password: hashedPassword,
+      password: await bcrypt.hash(password, 10),
       role,
     };
 
-    // Attach the correct profile based on role, if it was sent.
-    if (role === 'student' && req.body.studentProfile) {
-      newUserData.studentProfile = req.body.studentProfile;
-    }
-    if (role === 'employer' && req.body.employerProfile) {
-      newUserData.employerProfile = req.body.employerProfile;
+    // Enforce role-specific required fields here, where we know the role.
+    if (role === 'student') {
+      const p = req.body.studentProfile || {};
+      if (!p.courseOfStudy || !p.academicLevel || !p.state || !p.city) {
+        return res.status(400).json({
+          message: 'Students must provide course of study, academic level, state and city',
+        });
+      }
+      // skills is optional, so it is not checked.
+      newUserData.studentProfile = {
+        courseOfStudy: p.courseOfStudy,
+        academicLevel: p.academicLevel,
+        state: p.state,
+        city: p.city,
+        skills: p.skills || '',
+      };
     }
 
-    // Save the new user.
+    if (role === 'employer') {
+      const p = req.body.employerProfile || {};
+      if (!p.organisationName || !p.disciplines || !p.state || !p.city) {
+        return res.status(400).json({
+          message: 'Employers must provide organisation name, disciplines, state and city',
+        });
+      }
+      // about is optional. isVerified always starts false, set by the schema.
+      newUserData.employerProfile = {
+        organisationName: p.organisationName,
+        disciplines: p.disciplines,
+        state: p.state,
+        city: p.city,
+        about: p.about || '',
+      };
+    }
+
     const user = await User.create(newUserData);
-
-    // Give the new user a token so they are logged in right after registering.
     const token = createToken(user);
 
-    // Return safe fields only. Never send the password back.
     res.status(201).json({
       message: 'Account created successfully',
       token,
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
-      },
+      user: publicUser(user),
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -72,36 +101,27 @@ export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Both fields are required to log in.
     if (!email || !password) {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    // Find the user by email.
     const user = await User.findOne({ email });
 
     if (!user) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    // Compare the typed password against the stored hash.
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    // Credentials are correct. Build a token.
     const token = createToken(user);
 
     res.status(200).json({
       message: 'Login successful',
       token,
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
-      },
+      user: publicUser(user),
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
