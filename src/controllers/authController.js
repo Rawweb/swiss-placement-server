@@ -127,3 +127,46 @@ export const loginUser = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+
+export const updateMyProfile = async (req, res) => {
+  try {
+    // The logged-in user's id comes from the verified token.
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Update only the profile that matches the user's role.
+    // Role and email are never touched here, on purpose.
+    if (user.role === 'student') {
+      const p = req.body.studentProfile || {};
+      user.studentProfile = {
+        courseOfStudy: p.courseOfStudy ?? user.studentProfile?.courseOfStudy,
+        academicLevel: p.academicLevel ?? user.studentProfile?.academicLevel,
+        state: p.state ?? user.studentProfile?.state,
+        city: p.city ?? user.studentProfile?.city,
+        skills: p.skills ?? user.studentProfile?.skills,
+      };
+    } else if (user.role === 'employer') {
+      const p = req.body.employerProfile || {};
+      user.employerProfile = {
+        // isVerified is preserved, never editable by the user.
+        isVerified: user.employerProfile?.isVerified,
+        organisationName: p.organisationName ?? user.employerProfile?.organisationName,
+        disciplines: p.disciplines ?? user.employerProfile?.disciplines,
+        state: p.state ?? user.employerProfile?.state,
+        city: p.city ?? user.employerProfile?.city,
+        about: p.about ?? user.employerProfile?.about,
+      };
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      message: 'Profile updated',
+      user: publicUser(user),
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
