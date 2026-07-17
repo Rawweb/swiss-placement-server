@@ -86,7 +86,7 @@ export const getApplicationsForMyOpportunities = async (req, res) => {
     const applications = await Application.find(query)
       .populate(
         'student',
-        'fullName studentProfile.courseOfStudy studentProfile.academicLevel studentProfile.state studentProfile.city',
+        'fullName studentProfile.courseOfStudy studentProfile.academicLevel studentProfile.state studentProfile.city studentProfile.skills',
       )
       .populate('opportunity', 'position')
       .sort({ createdAt: -1 });

@@ -92,7 +92,11 @@ export const registerUser = async (req, res) => {
       user: publicUser(user),
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.log("REGISTER ERROR:", error); // prints the real reason in the backend terminal
+    if (error.code === 11000) {
+      return res.status(409).json({ message: "Email is already registered" });
+    }
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
@@ -166,6 +170,19 @@ export const updateMyProfile = async (req, res) => {
       message: 'Profile updated',
       user: publicUser(user),
     });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+export const getMe = async (req, res) => {
+  try {
+    // Return the logged-in user's full record, minus the password.
+    const user = await User.findById(req.user.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.status(200).json({ user });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

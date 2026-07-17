@@ -15,7 +15,7 @@ const studentProfileSchema = new mongoose.Schema(
 const employerProfileSchema = new mongoose.Schema(
   {
     organisationName: { type: String, trim: true },
-    disciplines: { type: String, trim: true },
+    disciplines: { type: [String], default: [] },
     state: { type: String, trim: true },
     city: { type: String, trim: true },
     about: { type: String, trim: true },
@@ -43,7 +43,7 @@ const userSchema = new mongoose.Schema(
       enum: ['student', 'employer', 'coordinator'],
       required: true,
     },
-    
+
     studentProfile: { type: studentProfileSchema, default: undefined },
     employerProfile: { type: employerProfileSchema, default: undefined },
   },
