@@ -1,9 +1,14 @@
 import express from 'express';
 import cors from 'cors';
+import dotenv from 'dotenv';
 import authRoutes from './routes/authRoutes.js';
 import opportunityRoutes from './routes/opportunityRoutes.js';
 import applicationRoutes from './routes/applicationRoutes.js';
 import coordinatorRoutes from './routes/coordinatorRoutes.js';
+
+// Load environment variables before configuring middleware. With ES modules,
+// this file is evaluated before server.js can run dotenv.config().
+dotenv.config();
 
 const app = express();
 
